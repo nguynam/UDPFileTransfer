@@ -11,6 +11,7 @@ public class ClientUDP {
         String address = inFromUser.readLine();
         System.out.println("Enter port number: ");
         int port = Integer.parseInt(inFromUser.readLine());
+        clientSocket.connect(InetAddress.getByName(address),port);
         boolean on = true;
 
         while(on){
@@ -18,16 +19,17 @@ public class ClientUDP {
             String fileName = inFromUser.readLine();
             byte[] sendData = fileName.getBytes();
             InetAddress IPAddress = InetAddress.getByName(address);
-            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,IPAddress,port);
+            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length);
+            //DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,IPAddress,port);
             clientSocket.send(sendPacket);
 
             byte[] receiveData = new byte[50000];
             byte[] sizeBuffer = new byte[4];
-            System.arraycopy(sizeBuffer, 0, receiveData, 0, 4);
-            int sizeCheck = ByteBuffer.wrap(sizeBuffer).getInt();
 
             DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
             clientSocket.receive(receivePacket);
+            System.arraycopy(receiveData, 0, sizeBuffer, 0, 4);
+            int sizeCheck = ByteBuffer.wrap(sizeBuffer).getInt();
 
             if (sizeCheck != -1) {
                 byte[] buffer = new byte[1024];

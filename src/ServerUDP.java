@@ -43,13 +43,15 @@ public class ServerUDP {
                 // bytes to send fileSize.
                 BufferedInputStream fileIn = new BufferedInputStream(new FileInputStream(fileToSend));
                 fileIn.read(byteArray, 4, fileSize);
-                DatagramPacket sendPacket = new DatagramPacket(byteArray,byteArray.length);
+                DatagramPacket sendPacket = new DatagramPacket(byteArray,byteArray.length,receivePacket.getAddress(),receivePacket.getPort());
                 serverSocket.send(sendPacket);
                 fileIn.close();
                 // Close file InputStream.
             }
             else {
                 byte[] byteArray = ByteBuffer.allocate(4).putInt(-1).array();
+                DatagramPacket sendPacket = new DatagramPacket(byteArray, byteArray.length,receivePacket.getAddress(),receivePacket.getPort());
+                serverSocket.send(sendPacket);
                 // Signal an error occurred (file not found).
                 // Send byteArray (with error).
                 System.out.println("File not found.");
