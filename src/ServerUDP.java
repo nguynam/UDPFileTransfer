@@ -32,7 +32,7 @@ public class ServerUDP {
             DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
             serverSocket.receive(receivePacket);
             String requestedFile=  new String(receiveData);
-            System.out.println("Got message: " + requestedFile);
+            System.out.println("Cliet requested file: " + requestedFile);
 
             if (fileMap.containsKey(requestedFile)) {
                 File fileToSend = fileMap.get(requestedFile);
