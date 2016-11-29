@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 public class ServerUDP {
     public static SortedMap<Integer, byte[]> slidingWindow = new ConcurrentSkipListMap<Integer, byte[]>();
     public static int lastInWindow = 0;
+
     private static Map<String, File> scanFolder(String dir) {
         Map<String, File> folderMap = new HashMap<String, File>();
         File folder = new File(dir);
@@ -34,7 +35,7 @@ public class ServerUDP {
             DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
             serverSocket.receive(receivePacket);
             String requestedFile=  new String(receiveData).trim();
-            System.out.println("Got message: " + requestedFile);
+            System.out.println("Client requested file: " + requestedFile);
             RandomAccessFile fileToSend = new RandomAccessFile(fileMap.get(requestedFile),"r");
             slidingWindow.clear();
             lastInWindow = 0;
@@ -50,7 +51,6 @@ public class ServerUDP {
                     DatagramPacket sendPacket = new DatagramPacket(tempBytes,tempBytes.length,receivePacket.getAddress(),receivePacket.getPort());
                     serverSocket.send(sendPacket);
                     slidingWindow.remove(entry.getKey());
-                    //slidingWindow.remove(entry.getKey());
                     loadWindow(fileToSend);
                 }
                 fileToSend.close();
