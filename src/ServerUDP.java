@@ -36,6 +36,8 @@ public class ServerUDP {
             String requestedFile=  new String(receiveData).trim();
             System.out.println("Got message: " + requestedFile);
             RandomAccessFile fileToSend = new RandomAccessFile(fileMap.get(requestedFile),"r");
+            slidingWindow.clear();
+            lastInWindow = 0;
             if (fileToSend != null) {
                 // Determine specified file if it exists
                 int fileSize = (int) fileToSend.length();
