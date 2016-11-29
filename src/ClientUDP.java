@@ -22,18 +22,23 @@ public class ClientUDP {
             clientSocket.send(sendPacket);
 
             int endOfFile = 0;
-            FileOutputStream fileIn = new FileOutputStream(fileName);
-
+            //FileOutputStream fileIn = new FileOutputStream(fileName);
+            RandomAccessFile fileIn = new RandomAccessFile(fileName,"rw");
             while (endOfFile != -1) {
                 byte[] receiveData = new byte[1024];
-                byte[] sizeBuffer = new byte[4];
-                System.arraycopy(sizeBuffer, 0, receiveData, 0, 4);
-                endOfFile = ByteBuffer.wrap(sizeBuffer).getInt();
-
+                byte[] endIndicatorBuf = new byte[4];
+                byte[] recievedByteIndex = new byte[4];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
                 clientSocket.receive(receivePacket);
 
-                fileIn.write(receiveData, 4, receiveData.length);
+                System.arraycopy(receiveData,0,endIndicatorBuf,0,4);
+                System.arraycopy(receiveData,4,recievedByteIndex,0,4);
+
+                endOfFile = ByteBuffer.wrap(endIndicatorBuf).getInt();
+                int recievedIndex = ByteBuffer.wrap(recievedByteIndex).getInt();
+
+                fileIn.seek(recievedIndex);
+                fileIn.write(receiveData,8,1016);
             }
             fileIn.close();
 
