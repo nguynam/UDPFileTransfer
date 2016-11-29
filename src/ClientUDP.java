@@ -11,7 +11,6 @@ public class ClientUDP {
         String address = inFromUser.readLine();
         System.out.println("Enter port number: ");
         int port = Integer.parseInt(inFromUser.readLine());
-        clientSocket.connect(InetAddress.getByName(address),port);
         boolean on = true;
 
         while(on){
@@ -19,45 +18,35 @@ public class ClientUDP {
             String fileName = inFromUser.readLine();
             byte[] sendData = fileName.getBytes();
             InetAddress IPAddress = InetAddress.getByName(address);
-            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length);
-            //DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,IPAddress,port);
+            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,IPAddress,port);
             clientSocket.send(sendPacket);
 
-            byte[] receiveData = new byte[50000];
-            byte[] sizeBuffer = new byte[4];
+            int endOfFile = 0;
+            //FileOutputStream fileIn = new FileOutputStream(fileName);
+            RandomAccessFile fileIn = new RandomAccessFile(fileName,"rw");
+            while (endOfFile != -1) {
+                byte[] receiveData = new byte[1024];
+                byte[] endIndicatorBuf = new byte[4];
+                byte[] recievedByteIndex = new byte[4];
+                DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
+                clientSocket.receive(receivePacket);
 
-            DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
-            clientSocket.receive(receivePacket);
-            System.arraycopy(receiveData, 0, sizeBuffer, 0, 4);
-            int sizeCheck = ByteBuffer.wrap(sizeBuffer).getInt();
+                System.arraycopy(receiveData,0,endIndicatorBuf,0,4);
+                System.arraycopy(receiveData,4,recievedByteIndex,0,4);
 
-            if (sizeCheck != -1) {
-                byte[] buffer = new byte[1024];
-                FileOutputStream fileIn = new FileOutputStream(fileName);
-                int totalCount = 0;
-                while (totalCount < sizeCheck - 1) {
-                    //Not sure what to do here
-                    int localCount = clientSocket.getReceiveBufferSize();
-                    totalCount = totalCount + localCount;
-                    fileIn.write(buffer, 0, localCount);
-                }
-                // fill buffer with 1024 bytes and save to
-                // file until total bytes read equals file size.
+                endOfFile = ByteBuffer.wrap(endIndicatorBuf).getInt();
+                int recievedIndex = ByteBuffer.wrap(recievedByteIndex).getInt();
 
-                fileIn.close();
-            } else {
-                System.out.println("File not found");
-
+                fileIn.seek(recievedIndex);
+                fileIn.write(receiveData,8,1016);
             }
+            fileIn.close();
 
-
-            String messageBack = new String(receiveData);
             String exit = "Exit";
             if(fileName.equals(exit)){
                 on = false;
                 break;
             }
-            System.out.println("Server sent back message: " + messageBack);
         }
     }
 }
