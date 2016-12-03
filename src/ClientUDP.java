@@ -39,6 +39,11 @@ public class ClientUDP {
 
                 fileIn.seek(recievedIndex);
                 fileIn.write(receiveData,8,1016);
+
+                //Send Ack
+                byte[] ackData = ByteBuffer.allocate(1024).putInt(recievedIndex).array();
+                DatagramPacket ackPacket = new DatagramPacket(ackData,ackData.length,IPAddress,port);
+                clientSocket.send(ackPacket);
             }
             fileIn.close();
 

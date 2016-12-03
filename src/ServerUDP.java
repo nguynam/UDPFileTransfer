@@ -8,8 +8,15 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+/*
+TO-DO:
+Acknowledgments
+Checksum
+Exact file transfer - send packet data size instead of "last packet" indicator so client can avoid reading empty bytes.
+ */
+
 public class ServerUDP {
-    public static SortedMap<Integer, byte[]> slidingWindow = new ConcurrentSkipListMap<Integer, byte[]>();
+    public static SortedMap<Integer, Packet> slidingWindow = new ConcurrentSkipListMap<>();
     public static int lastInWindow = 0;
 
     private static Map<String, File> scanFolder(String dir) {
@@ -34,24 +41,26 @@ public class ServerUDP {
             byte[] receiveData = new byte[1024];
             DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
             serverSocket.receive(receivePacket);
-            String requestedFile=  new String(receiveData).trim();
+            String requestedFile = new String(receiveData).trim();
             System.out.println("Client requested file: " + requestedFile);
             RandomAccessFile fileToSend = new RandomAccessFile(fileMap.get(requestedFile),"r");
             slidingWindow.clear();
             lastInWindow = 0;
             if (fileToSend != null) {
                 // Determine specified file if it exists
-                int fileSize = (int) fileToSend.length();
                 loadWindow(fileToSend);
-                //Iterator<Map.Entry<Integer,byte[]>> iter = slidingWindow.entrySet().iterator();
-                for(Map.Entry<Integer,byte[]> entry : slidingWindow.entrySet()){
-                    //Map.Entry<Integer, byte[]> entry = iter.next();
-                    byte[] tempBytes = new byte[1024];
-                    tempBytes = slidingWindow.get(entry.getKey());
-                    DatagramPacket sendPacket = new DatagramPacket(tempBytes,tempBytes.length,receivePacket.getAddress(),receivePacket.getPort());
-                    serverSocket.send(sendPacket);
-                    slidingWindow.remove(entry.getKey());
-                    loadWindow(fileToSend);
+                while(slidingWindow.isEmpty() == false){
+                    //Send whole window (unless packet is acked).
+                    for(Map.Entry<Integer,Packet> entry : slidingWindow.entrySet()){
+                        Packet tempPacket;
+                        tempPacket = slidingWindow.get(entry.getKey());
+                        //Send packet if it is not acked
+                        if(tempPacket.isAcknowledged() == false){
+                            DatagramPacket sendPacket = new DatagramPacket(tempPacket.getBytes(),tempPacket.getBytes().length,receivePacket.getAddress(),receivePacket.getPort());
+                            serverSocket.send(sendPacket);
+                        }
+                    }
+                    slideWindow(serverSocket,fileToSend);
                 }
                 fileToSend.close();
                 // Close file InputStream.
@@ -67,11 +76,39 @@ public class ServerUDP {
 
         }
     }
+    private static void slideWindow(DatagramSocket receiveSocket, RandomAccessFile sendingFile) throws IOException {
+        byte[] recieveData = new byte[1024];
+        DatagramPacket recievePacket = new DatagramPacket(recieveData,recieveData.length);
+        receiveSocket.setSoTimeout(500);
+        while(true) {
+            try {
+                receiveSocket.receive(recievePacket);
+                int ackedPacket = ByteBuffer.wrap(recieveData).getInt();
+                slidingWindow.get(ackedPacket).setAcknowledged(true);
+
+            } catch (SocketTimeoutException t) {
+                //Socket timed out - assuming no further data for now
+                //Remove acked packets that are not surrounded by unacked packets.
+                Boolean foundUnAck = false;
+                for(Map.Entry<Integer, Packet> entry : slidingWindow.entrySet()){
+                    if(entry.getValue().isAcknowledged()){
+                        slidingWindow.remove(entry.getKey());
+                    }else{
+                        //Current packet is not acked so window cannot be slid further
+                        break;
+                    }
+                }
+                loadWindow(sendingFile);
+                return;
+            }
+        }
+    }
     private static void loadWindow(RandomAccessFile sendingFile) throws IOException {
         int fileSize = (int)sendingFile.length();
-        //return -1 if last packet worth of data reached
         byte[] currentBytes;
+        Packet packet;
         while(lastInWindow < fileSize && slidingWindow.size() < 5) {
+            packet = new Packet();
             currentBytes = new byte[1024];
             //Maybe 1015? for length
             int readBytes = sendingFile.read(currentBytes,8, 1016);
@@ -82,19 +119,10 @@ public class ServerUDP {
             else{
                 System.arraycopy(ByteBuffer.allocate(8).putInt(-1).putInt(lastInWindow).array(),0,currentBytes,0,8);
             }
-            slidingWindow.put(lastInWindow,currentBytes);
+            packet.setBytes(currentBytes);
+            slidingWindow.put(lastInWindow,packet);
             lastInWindow = lastInWindow + 1016;
             sendingFile.seek(lastInWindow);
         }
     }
-    private byte[] loadBuffer(int offset,int fileSize, RandomAccessFile sendingFile) throws IOException {
-        //Fill first 4 bytes with offest (index of current file)
-        byte[] toSend = ByteBuffer.allocate(1024).putInt(0,offset).putInt(4,fileSize).array();
-        //Offset file's current position
-        sendingFile.seek(offset);
-        //Load 1016 bytes of file into byte array (leaving first 8 bytes as headers)
-        sendingFile.read(toSend,8,1016);
-        return toSend;
-    }
-
 }
