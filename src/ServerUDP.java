@@ -40,6 +40,8 @@ public class ServerUDP {
         while(true){
             byte[] receiveData = new byte[1024];
             DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
+            //Remove timeout while waiting for new file to be requested (waiting for user)
+            serverSocket.setSoTimeout(0);
             serverSocket.receive(receivePacket);
             String requestedFile = new String(receiveData).trim();
             System.out.println("Client requested file: " + requestedFile);
@@ -89,7 +91,6 @@ public class ServerUDP {
             } catch (SocketTimeoutException t) {
                 //Socket timed out - assuming no further data for now
                 //Remove acked packets that are not surrounded by unacked packets.
-                Boolean foundUnAck = false;
                 for(Map.Entry<Integer, Packet> entry : slidingWindow.entrySet()){
                     if(entry.getValue().isAcknowledged()){
                         slidingWindow.remove(entry.getKey());
