@@ -2,11 +2,10 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 /*
 TO-DO:
@@ -81,7 +80,7 @@ public class ServerUDP {
     private static void slideWindow(DatagramSocket receiveSocket, RandomAccessFile sendingFile) throws IOException {
         byte[] recieveData = new byte[1024];
         DatagramPacket recievePacket = new DatagramPacket(recieveData,recieveData.length);
-        receiveSocket.setSoTimeout(500);
+        receiveSocket.setSoTimeout(50);
         while(true) {
             try {
                 receiveSocket.receive(recievePacket);
@@ -112,17 +111,26 @@ public class ServerUDP {
             packet = new Packet();
             currentBytes = new byte[1024];
             //Maybe 1015? for length
-            int readBytes = sendingFile.read(currentBytes,8, 1016);
-            if(readBytes == 1016){
+            int readBytes = sendingFile.read(currentBytes,13, 1011);
+            if(readBytes == 1011){
                 //Read full packet worth of data
-                System.arraycopy(ByteBuffer.allocate(8).putInt(0).putInt(lastInWindow).array(),0,currentBytes,0,8);
+                System.arraycopy(ByteBuffer.allocate(13).put(8,(byte)0).putInt(9,lastInWindow).array(),0,currentBytes,0,13);
+                System.arraycopy(ByteBuffer.allocate(13).put(8,(byte)0).putInt(9,lastInWindow).array(),0,currentBytes,0,13);
+                Checksum checksum = new CRC32();
+                checksum.update(currentBytes,8,1016);
+                long checkValue = checksum.getValue();
+                ByteBuffer.wrap(currentBytes).putLong(0,checkValue);
             }
             else{
-                System.arraycopy(ByteBuffer.allocate(8).putInt(-1).putInt(lastInWindow).array(),0,currentBytes,0,8);
+                System.arraycopy(ByteBuffer.allocate(13).put(8,(byte)-1).putInt(9, lastInWindow).array(),0,currentBytes,0,13);
+                Checksum checksum = new CRC32();
+                checksum.update(currentBytes,8,1016);
+                long checkValue = checksum.getValue();
+                ByteBuffer.wrap(currentBytes).putLong(0,checkValue);
             }
             packet.setBytes(currentBytes);
             slidingWindow.put(lastInWindow,packet);
-            lastInWindow = lastInWindow + 1016;
+            lastInWindow = lastInWindow + 1011;
             sendingFile.seek(lastInWindow);
         }
     }

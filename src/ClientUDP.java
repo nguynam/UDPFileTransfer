@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 
 public class ClientUDP {
@@ -21,24 +23,30 @@ public class ClientUDP {
             DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,IPAddress,port);
             clientSocket.send(sendPacket);
 
-            int endOfFile = 0;
+            byte endOfFile = 0;
             //FileOutputStream fileIn = new FileOutputStream(fileName);
             RandomAccessFile fileIn = new RandomAccessFile(fileName,"rw");
             while (endOfFile != -1) {
                 byte[] receiveData = new byte[1024];
-                byte[] endIndicatorBuf = new byte[4];
+                byte[] endIndicatorBuf = new byte[1];
                 byte[] recievedByteIndex = new byte[4];
+                byte[] checksumBytes = new byte[8];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData,receiveData.length);
                 clientSocket.receive(receivePacket);
+                Checksum checksum = new CRC32();
+                checksum.update(receiveData,8,1016);
+                long calculatedCheck = checksum.getValue();
+                System.arraycopy(receiveData,0,checksumBytes,0,8);
+                System.arraycopy(receiveData,8,endIndicatorBuf,0,1);
+                System.arraycopy(receiveData, 9, recievedByteIndex, 0, 4);
+                long recievedCheck = ByteBuffer.wrap(checksumBytes).getLong();
+                if(recievedCheck != calculatedCheck) continue; //Checksum not correct stop handling packet
 
-                System.arraycopy(receiveData,0,endIndicatorBuf,0,4);
-                System.arraycopy(receiveData,4,recievedByteIndex,0,4);
-
-                endOfFile = ByteBuffer.wrap(endIndicatorBuf).getInt();
+                endOfFile = ByteBuffer.wrap(endIndicatorBuf).get();
                 int recievedIndex = ByteBuffer.wrap(recievedByteIndex).getInt();
 
                 fileIn.seek(recievedIndex);
-                fileIn.write(receiveData,8,1016);
+                fileIn.write(receiveData,13,1011);
 
                 //Send Ack
                 byte[] ackData = ByteBuffer.allocate(1024).putInt(recievedIndex).array();
